@@ -52,7 +52,7 @@ async function deduplicateGroup(group, store) {
 
   // Delete all the older items.
   await Promise.all(itemsToDelete.map(async i => {
-    console.log(`Deleting ${i.name}`);
+    console.log(`Deleting duplicate ${i.name}`);
     await store.delete(i.name);
   }));
 }
@@ -61,6 +61,15 @@ async function cleanRepeaters(context) {
   const store = context.env.REPEATERS;
   const repeatersList = await store.list();
   const indexed = new Map();
+
+  // Delete stale entries.
+  await Promise.all(repeatersList.keys.map(async r => {
+    const time = r.metadata.time ?? 0;
+    if (util.ageInDays(time) > 10) {
+      console.log(`Deleting stale ${i.name}`);
+      await store.delete(r.name);
+    }
+  }));
 
   // Index repeaters by Id.
   repeatersList.keys.forEach(r => {
