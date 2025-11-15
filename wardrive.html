@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>MeshCore Wardrive</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="MeshCore Wardrive - Crowd-sourced mesh coverage tool">
+  <meta name="keywords" content="MeshCore,coverage,wardrive,cascadia,pugetmesh">
+  <meta name="author" content="Kyle Reed">
+  <link rel="manifest" href="content/wardrive.json">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100">
+  <main class="min-h-screen flex items-start justify-center p-4">
+    <div class="w-full max-w-3xl space-y-4">
+
+      <header class="flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-semibold">MeshCore Wardrive</h1>
+          <p class="text-sm text-slate-400">
+            Send GPS pings over MeshCore to channel <span class="font-mono">#wardrive</span> and log coverage.
+          </p>
+        </div>
+        <div class="text-right text-sm">
+          <div>Status: <span id="status" class="font-semibold text-red-300">Disconnected</span></div>
+          <div id="deviceName" class="text-slate-400 text-xs"></div>
+          <div id="channelInfo" class="text-slate-400 text-xs"></div>
+        </div>
+      </header>
+
+      <!-- Connection controls -->
+      <section class="bg-slate-800/80 border border-slate-700 rounded-xl p-4 space-y-2 shadow">
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            id="connectBtn"
+            class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-sm font-medium disabled:opacity-40">
+            Connect via BLE
+          </button>
+          <button
+            id="disconnectBtn"
+            disabled
+            class="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-sm font-medium disabled:opacity-40">
+            Disconnect
+          </button>
+          <span class="text-xs text-slate-400">
+            Requires Bluetooth &amp; Location permissions.
+          </span>
+        </div>
+      </section>
+
+      <!-- Wardrive controls -->
+      <section id="controls" class="bg-slate-800/80 border border-slate-700 rounded-xl p-4 space-y-4 hidden">
+        <h2 class="text-lg font-semibold">Wardrive Controls</h2>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="space-y-1">
+            <label class="block text-sm text-slate-300">Ping interval</label>
+            <select id="intervalSelect"
+                    class="w-full bg-slate-900/70 border border-slate-600 rounded-lg px-2 py-1.5 text-sm">
+              <option value="0.5">Every 30 seconds</option>
+              <option value="1" selected>Every 1 minute</option>
+              <option value="2">Every 2 minutes</option>
+              <option value="5">Every 5 minutes</option>
+              <option value="10">Every 10 minutes</option>
+            </select>
+          </div>
+
+          <div class="space-y-1">
+            <label class="block text-sm text-slate-300">Min distance between pings (auto mode)</label>
+            <select id="minDistanceSelect"
+                    class="w-full bg-slate-900/70 border border-slate-600 rounded-lg px-2 py-1.5 text-sm">
+              <option value="0">No distance check</option>
+              <option value="0.1">0.1 miles</option>
+              <option value="0.25">0.25 miles</option>
+              <option value="0.5" selected>0.5 miles</option>
+              <option value="1">1 mile</option>
+              <option value="2">2 miles</option>
+              <option value="5">5 miles</option>
+            </select>
+          </div>
+
+          <div class="space-y-1">
+            <label class="block text-sm text-slate-300">Last sample</label>
+            <div id="lastSampleInfo" class="text-xs text-slate-400">
+              None yet
+            </div>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            id="sendPingBtn"
+            class="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm font-medium disabled:opacity-40">
+            Send ping now
+          </button>
+          <button
+            id="autoToggleBtn"
+            class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-sm font-medium disabled:opacity-40">
+            Start auto mode
+          </button>
+          <span class="text-xs text-slate-400">
+            Auto mode honors the minimum distance setting.
+          </span>
+        </div>
+      </section>
+
+      <!-- Log -->
+      <section class="bg-slate-800/80 border border-slate-700 rounded-xl p-4 space-y-2">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-semibold">Sample log</h2>
+          <button
+            id="clearLogBtn"
+            class="px-2 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs text-slate-100">
+            Clear log
+          </button>
+        </div>
+
+        <div class="overflow-x-auto max-h-72 border border-slate-700/80 rounded-lg">
+          <table class="min-w-full text-xs">
+            <thead class="bg-slate-900/60 text-slate-300">
+              <tr>
+                <th class="px-2 py-1 text-left">Time</th>
+                <th class="px-2 py-1 text-left">Lat</th>
+                <th class="px-2 py-1 text-left">Lon</th>
+                <th class="px-2 py-1 text-left">Mode</th>
+                <th class="px-2 py-1 text-left">Dist (mi)</th>
+                <th class="px-2 py-1 text-left">Mesh</th>
+                <th class="px-2 py-1 text-left">Service</th>
+                <th class="px-2 py-1 text-left">Notes</th>
+              </tr>
+            </thead>
+            <tbody id="logBody" class="divide-y divide-slate-800"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    import { WebBleConnection, Constants} from "/content/mc/index.js";
+    import { haversineMiles } from "/content/shared.js";
+
+    // --- DOM helpers ---
+    const $ = id => document.getElementById(id);
+    const statusEl = $("status");
+    const deviceNameEl = $("deviceName");
+    const channelInfoEl = $("channelInfo");
+    const lastSampleInfoEl = $("lastSampleInfo");
+    const controlsSection = $("controls");
+    const logBody = $("logBody");
+
+    const connectBtn = $("connectBtn");
+    const disconnectBtn = $("disconnectBtn");
+    const sendPingBtn = $("sendPingBtn");
+    const autoToggleBtn = $("autoToggleBtn");
+    const clearLogBtn = $("clearLogBtn");
+    const intervalSelect = $("intervalSelect");
+    const minDistanceSelect = $("minDistanceSelect");
+
+    function setStatus(text, color = null) {
+      statusEl.textContent = text;
+      console.log(`status: ${text}`);
+      if (color) {
+        statusEl.className = "font-semibold " + color;
+      }
+    }
+
+    // --- State ---
+    const LOG_KEY = "meshcoreWardriveLogV1";
+
+    const state = {
+      connection: null,
+      selfInfo: null,
+      wardriveChannel: null,
+      autoMode: false,
+      autoTimerId: null,
+      lastSample: null, // { lat, lon, timestamp }
+      log: [],
+    };
+
+    // --- Utility functions ---
+    function getIntervalMinutes() {
+      return parseFloat(intervalSelect.value || "0");
+    }
+
+    function getMinDistanceMiles() {
+      return parseFloat(minDistanceSelect.value || "0");
+    }
+
+    function formatIsoLocal(iso) {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return iso;
+      return d.toLocaleString();
+    }
+
+    // --- Local storage log ---
+    function loadLog() {
+      try {
+        const raw = localStorage.getItem(LOG_KEY);
+        if (raw) {
+          state.log = JSON.parse(raw);
+        }
+      } catch (e) {
+        console.warn("Failed to load wardrive log", e);
+      }
+      renderLog();
+    }
+
+    function saveLog() {
+      try {
+        localStorage.setItem(LOG_KEY, JSON.stringify(state.log));
+      } catch (e) {
+        console.warn("Failed to save wardrive log", e);
+      }
+    }
+
+    function addLogEntry(entry) {
+      state.log.push(entry);
+      // Keep it from growing forever; adjust as you like
+      if (state.log.length > 1000) {
+        state.log.splice(0, state.log.length - 1000);
+      }
+      saveLog();
+      renderLog();
+    }
+
+    function renderLog() {
+      logBody.innerHTML = "";
+      const rows = [...state.log].slice(-200).reverse(); // show last 200, newest first
+      for (const entry of rows) {
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-900/60";
+
+        const cells = [
+          formatIsoLocal(entry.timestamp),
+          entry.lat?.toFixed(4) ?? "",
+          entry.lon?.toFixed(4) ?? "",
+          entry.mode ?? "",
+          // entry.distanceMiles != null ? entry.distanceMiles.toFixed(2) : "",
+          // entry.sentToMesh ? "✔" : entry.skipped ? "–" : "✖",
+          // entry.sentToService ? "✔" : "",
+          // entry.notes ?? "",
+        ];
+
+        for (const text of cells) {
+          const td = document.createElement("td");
+          td.className = "px-2 py-1 align-top";
+          td.textContent = text;
+          tr.appendChild(td);
+        }
+
+        logBody.appendChild(tr);
+      }
+    }
+
+    function updateLastSampleInfo() {
+      if (!state.lastSample) {
+        lastSampleInfoEl.textContent = "None yet";
+        return;
+      }
+      const { lat, lon, timestamp } = state.lastSample;
+      lastSampleInfoEl.textContent =
+        `${lat.toFixed(4)}, ${lon.toFixed(4)} @ ` + formatIsoLocal(timestamp);
+    }
+
+    // --- Geolocation ---
+    function getCurrentPosition() {
+      return new Promise((resolve, reject) => {
+        if (!("geolocation" in navigator)) {
+          reject(new Error("Geolocation is not available in this browser"));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve(pos),
+          (err) => reject(err),
+          {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 20000,
+          }
+        );
+      });
+    }
+
+    // --- Wardrive channel helpers ---
+    async function ensureWardriveChannel() {
+      if (!state.connection) {
+        throw new Error("Not connected");
+      }
+      if (state.wardriveChannel) {
+        return state.wardriveChannel;
+      }
+
+      // Look for existing channel by name
+      const existing = await state.connection.findChannelByName("#wardrive");
+      if (existing) {
+        state.wardriveChannel = existing;
+        channelInfoEl.textContent =
+          `Using #wardrive on slot ${existing.channelIdx}`;
+        return existing;
+      }
+
+      const create = window.confirm(
+        'Channel "#wardrive" not found on this device. Create it now?'
+      );
+      if (!create) {
+        channelInfoEl.textContent = "No #wardrive channel; ping disabled.";
+        throw new Error("Wardrive channel not created");
+      }
+
+      // Find a free channel index
+      const channels = await state.connection.getChannels();
+      const used = new Set(channels.map((c) => c.channelIdx));
+      let idx = 0;
+      while (used.has(idx)) idx++;
+
+      // Generate 128-bit secret
+      let secret = new Uint8Array(16);
+      if (window.crypto && window.crypto.getRandomValues) {
+        window.crypto.getRandomValues(secret);
+      }
+
+      await state.connection.setChannel(idx, "#wardrive", secret);
+      const channel = { channelIdx: idx, name: "#wardrive", secret };
+      state.wardriveChannel = channel;
+      channelInfoEl.textContent =
+        `Created #wardrive on slot ${idx}`;
+      return channel;
+    }
+
+    // --- Ping logic ---
+    async function sendPing({ auto = false } = {}) {
+      if (!state.connection) {
+        setStatus("Not connected", "font-semibold text-red-300");
+        return;
+      }
+
+      // Ensure channel exists (may prompt)
+      let channel;
+      try {
+        channel = await ensureWardriveChannel();
+      } catch (e) {
+        console.warn("Wardrive channel not available", e);
+        setStatus("No #wardrive channel; see prompt", "font-semibold text-amber-300");
+        return;
+      }
+
+      setStatus(auto ? "Auto ping: getting location…" : "Getting location…", "font-semibold text-sky-300");
+
+      let pos;
+      try {
+        pos = await getCurrentPosition();
+      } catch (e) {
+        console.error("Geolocation error", e);
+        setStatus("Geolocation failed", "font-semibold text-red-300");
+        addLogEntry({
+          timestamp: new Date().toISOString(),
+          mode: auto ? "auto" : "manual",
+          notes: "Geolocation failed: " + e.message,
+          sentToMesh: false,
+          sentToService: false,
+        });
+        return;
+      }
+
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+
+      // Auto-mode distance gate
+      let distanceMilesValue = null;
+      const minMiles = getMinDistanceMiles();
+      if (auto && state.lastSample && minMiles > 0) {
+        distanceMilesValue = haversineMiles(
+          [state.lastSample.lat, state.lastSample.lon],
+          [lat, lon]
+        );
+        if (distanceMilesValue < minMiles) {
+          const notes = `Skipped auto ping: ${distanceMilesValue.toFixed(2)} mi < ${minMiles} mi`;
+          console.log(notes);
+          setStatus(notes, "font-semibold text-amber-300");
+          addLogEntry({
+            timestamp: new Date().toISOString(),
+            lat,
+            lon,
+            mode: "auto",
+            distanceMiles: distanceMilesValue,
+            skipped: true,
+            sentToMesh: false,
+            sentToService: false,
+            notes,
+          });
+          return;
+        }
+      }
+
+      const text = `${lat.toFixed(4)} ${lon.toFixed(4)}`;
+
+      let sentToMesh = false;
+      let sentToService = false;
+      let notes = "";
+
+      try {
+        // 2. Send mesh message: #wardrive "<lat> <lon>"
+        await state.connection.sendChannelTextMessage(
+          channel.channelIdx,
+          text
+        );
+        sentToMesh = true;
+        notes = "Mesh OK";
+        console.log("Sent MeshCore wardrive ping:", text);
+      } catch (e) {
+        console.error("Mesh send failed", e);
+        setStatus("Mesh send failed", "font-semibold text-red-300");
+        notes = "Mesh send failed: " + e.message;
+      }
+
+      if (sentToMesh) {
+        // 3. Notify external service
+        try {
+          await fetch("https://mesh-map.pages.dev/put-sample", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lat, lon }),
+          });
+          sentToService = true;
+          notes += notes ? "; service OK" : "Service OK";
+        } catch (e) {
+          console.error("Service POST failed", e);
+          notes += notes ? "; service failed" : "Service failed: " + e.message;
+        }
+
+        // 4 & 5. Update last sample
+        const nowIso = new Date().toISOString();
+        state.lastSample = { lat, lon, timestamp: nowIso };
+        updateLastSampleInfo();
+      }
+
+      // 4. Log to localStorage
+      const entry = {
+        timestamp: new Date().toISOString(),
+        lat,
+        lon,
+        mode: auto ? "auto" : "manual",
+        distanceMiles: distanceMilesValue,
+        sentToMesh,
+        sentToService,
+        notes,
+      };
+      addLogEntry(entry);
+
+      if (sentToMesh) {
+        setStatus(
+          auto ? "Auto ping sent" : "Ping sent",
+          "font-semibold text-emerald-300"
+        );
+      }
+    }
+
+    // --- Auto mode ---
+    function updateAutoButton() {
+      if (state.autoMode) {
+        autoToggleBtn.textContent = "Stop auto mode";
+        autoToggleBtn.classList.remove("bg-indigo-600", "hover:bg-indigo-500");
+        autoToggleBtn.classList.add("bg-amber-600", "hover:bg-amber-500");
+      } else {
+        autoToggleBtn.textContent = "Start auto mode";
+        autoToggleBtn.classList.add("bg-indigo-600", "hover:bg-indigo-500");
+        autoToggleBtn.classList.remove("bg-amber-600", "hover:bg-amber-500");
+      }
+    }
+
+    function stopAutoMode() {
+      if (state.autoTimerId != null) {
+        clearInterval(state.autoTimerId);
+        state.autoTimerId = null;
+      }
+      state.autoMode = false;
+      updateAutoButton();
+    }
+
+    function startAutoMode() {
+      if (!state.connection) {
+        alert("Connect to a MeshCore device first.");
+        return;
+      }
+
+      const minutes = getIntervalMinutes();
+      if (!minutes || minutes <= 0) {
+        alert("Please choose a valid ping interval.");
+        return;
+      }
+
+      stopAutoMode();
+
+      state.autoMode = true;
+      updateAutoButton();
+
+      const intervalMs = minutes * 60 * 1000;
+      setStatus("Auto mode started", "font-semibold text-emerald-300");
+
+      // Send first ping immediately, then on interval
+      sendPing({ auto: true }).catch(console.error);
+      state.autoTimerId = setInterval(() => {
+        sendPing({ auto: true }).catch(console.error);
+      }, intervalMs);
+    }
+
+    // --- Connection handling ---
+    async function handleConnect() {
+      if (state.connection) {
+        return;
+      }
+
+      if (!("bluetooth" in navigator)) {
+        alert("Web Bluetooth not supported in this browser.");
+        return;
+      }
+
+      setStatus("Connecting…", "font-semibold text-sky-300");
+      connectBtn.disabled = true;
+
+      try {
+        const connection = await WebBleConnection.open();
+        state.connection = connection;
+
+        connection.on("connected", onConnected);
+        connection.on("disconnected", onDisconnected);
+      } catch (e) {
+        console.error("Failed to open BLE connection", e);
+        setStatus("Failed to connect", "font-semibold text-red-300");
+        connectBtn.disabled = false;
+      }
+    }
+
+    async function handleDisconnect() {
+      if (!state.connection) return;
+      try {
+        await state.connection.close();
+      } catch (e) {
+        console.warn("Error closing connection", e);
+      }
+      // onDisconnected will be called from the BLE event
+    }
+
+    async function onConnected() {
+      setStatus("Connected (syncing…)", "font-semibold text-emerald-300");
+      disconnectBtn.disabled = false;
+      connectBtn.disabled = true;
+      controlsSection.classList.remove("hidden");
+
+      try {
+        // Optional but nice: sync device time
+        try {
+          await state.connection.syncDeviceTime();
+        } catch {
+          // ignore if not supported
+        }
+
+        const selfInfo = await state.connection.getSelfInfo();
+        state.selfInfo = selfInfo;
+        deviceNameEl.textContent = selfInfo?.name
+          ? `Device: ${selfInfo.name}`
+          : "Device connected";
+        setStatus(
+          `Connected to ${selfInfo?.name ?? "MeshCore"}`,
+          "font-semibold text-emerald-300"
+        );
+
+        // Try to ensure #wardrive exists right away (may prompt once)
+        try {
+          await ensureWardriveChannel();
+        } catch {
+          // handled in ensureWardriveChannel
+        }
+      } catch (e) {
+        console.error("Error during initial sync", e);
+        setStatus("Connected, but failed to init", "font-semibold text-amber-300");
+      }
+
+      // Listen for relevant pushes if you want them later
+      state.connection.on(Constants.PushCodes.MsgWaiting, async (evt) => {
+        console.log("MsgWaiting push", evt);
+      });
+    }
+
+    function onDisconnected() {
+      console.log("Disconnected");
+      setStatus("Disconnected", "font-semibold text-red-300");
+      deviceNameEl.textContent = "";
+      channelInfoEl.textContent = "";
+      disconnectBtn.disabled = true;
+      connectBtn.disabled = false;
+      controlsSection.classList.add("hidden");
+      stopAutoMode();
+      state.connection = null;
+      state.wardriveChannel = null;
+    }
+
+    // --- Event bindings ---
+    connectBtn.addEventListener("click", () => {
+      handleConnect().catch(console.error);
+    });
+
+    disconnectBtn.addEventListener("click", () => {
+      handleDisconnect().catch(console.error);
+    });
+
+    sendPingBtn.addEventListener("click", () => {
+      sendPing({ auto: false }).catch(console.error);
+    });
+
+    autoToggleBtn.addEventListener("click", () => {
+      if (state.autoMode) {
+        stopAutoMode();
+        setStatus("Auto mode stopped", "font-semibold text-slate-300");
+      } else {
+        startAutoMode();
+      }
+    });
+
+    clearLogBtn.addEventListener("click", () => {
+      if (!confirm("Clear local wardrive log?")) return;
+      state.log = [];
+      state.lastSample = null;
+      updateLastSampleInfo();
+      saveLog();
+      renderLog();
+    });
+
+    // --- Startup ---
+    loadLog();
+    updateLastSampleInfo();
+    updateAutoButton();
+  </script>
+</body>
+</html>
