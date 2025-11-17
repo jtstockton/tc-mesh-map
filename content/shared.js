@@ -52,24 +52,6 @@ export function parseLocation(latStr, lonStr) {
     return [lat, lon];
 }
 
-export function getNearest(fromPos, toPosList) {
-  if (toPosList.length === 1) {
-    return toPosList[0];
-  }
-
-  let minDist = haversineMiles(fromPos, toPosList[0]);
-  let minTo = toPosList[0];
-
-  toPosList.forEach(to => {
-    const dist = haversineMiles(fromPos, to);
-    if (dist < minDist) {
-      minTo = to;
-    }
-  });
-
-  return minTo;
-}
-
 export function ageInDays(time) {
   const dayInMillis = 24 * 60 * 60 * 1000;
   return (Date.now() - new Date(time)) / dayInMillis;

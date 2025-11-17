@@ -1,4 +1,4 @@
-import { ageInDays, getNearest } from './shared.js'
+import { ageInDays, haversineMiles } from './shared.js'
 
 // Global Init
 const map = L.map('map', { worldCopyJump: true }).setView([47.76837, -122.06078], 10);
@@ -10,6 +10,46 @@ const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 let edgeLayer = L.layerGroup().addTo(map);
 let sampleLayer = L.layerGroup().addTo(map);
 let repeaterLayer = L.layerGroup().addTo(map);
+let nodes = null; // Holds fetched results.
+let repeaterRenderMode = 'all';
+
+const mapControl = L.control({ position: 'topright' });
+mapControl.onAdd = m => {
+  const div = L.DomUtil.create('div', 'mesh-control leaflet-control');
+
+  div.innerHTML = `
+    <div class="mesh-control-row">
+      <label>
+        Repeaters:
+        <select id="repeater-filter-select">
+          <option value="all">All</option>
+          <option value="used">Used</option>
+          <option value="none">None</option>
+        </select>
+      </label>
+    </div>
+    <div class="mesh-control-row">
+      <button type="button" id="refresh-map-button">Refresh map</button>
+    </div>
+  `;
+
+  div.querySelector("#refresh-map-button")
+    .addEventListener("click", () => refreshCoverage());
+
+  div.querySelector("#repeater-filter-select")
+    .addEventListener("change", (e) => {
+      repeaterRenderMode = e.target.value;
+      renderNodes(nodes);
+    });
+
+  // Don’t let clicks on the control bubble up and pan/zoom the map.
+  L.DomEvent.disableClickPropagation(div);
+  L.DomEvent.disableScrollPropagation(div);
+
+  return div;
+};
+
+mapControl.addTo(map);
 
 function escapeHtml(s) {
   return String(s)
@@ -48,6 +88,26 @@ function repeaterMarker(r) {
   return marker;
 }
 
+function getNearestRepeater(fromPos, repeaterList) {
+  if (repeaterList.length === 1) {
+    return repeaterList[0];
+  }
+
+  let minRepeater = null;
+  let minDist = 30000;
+
+  repeaterList.forEach(r => {
+    const to = [r.lat, r.lon];
+    const dist = haversineMiles(fromPos, to);
+    if (dist < minDist) {
+      minDist = dist;
+      minRepeater = r;
+    }
+  });
+
+  return minRepeater;
+}
+
 function renderNodes(nodes) {
   sampleLayer.clearLayers();
   repeaterLayer.clearLayers();
@@ -55,6 +115,7 @@ function renderNodes(nodes) {
   const outEdges = [];
   const idToRepeaters = new Map();
 
+  // Add samples.
   nodes.samples.forEach(s => {
     sampleLayer.addLayer(sampleMarker(s));
     s.path.forEach(p => {
@@ -62,28 +123,37 @@ function renderNodes(nodes) {
     });
   });
 
+  // Are repeaters/edges needed?
+  if (repeaterRenderMode === 'none') return;
+
+  // Index repeaters.
   nodes.repeaters.forEach(r => {
-    repeaterLayer.addLayer(repeaterMarker(r));
-    r.path.forEach(p => {
-      outEdges.push({ id: p, pos: [r.lat, r.lon] });
-    });
     const repeaterList = idToRepeaters.get(r.id) ?? [];
-    repeaterList.push([r.lat, r.lon]);
+    repeaterList.push(r);
     idToRepeaters.set(r.id, repeaterList);
   });
 
   // TODO: render paths only when hovered over a sample.
-
+  // Draw edges.
+  const usedRepeaters = new Set();
+  const showAll = repeaterRenderMode === 'all';
   outEdges.forEach(edge => {
-    const toList = idToRepeaters.get(edge.id);
-
-    if (toList === undefined) {
+    const candidates = idToRepeaters.get(edge.id);
+    if (candidates === undefined) {
       console.log(`Missing repeater ${edge.id}`);
     } else {
       const from = edge.pos;
-      const to = getNearest(from, toList);
+      const nearest = getNearestRepeater(from, candidates);
+      const to = [nearest.lat, nearest.lon];
+      usedRepeaters.add(nearest);
       L.polyline([from, to], { weight: 2, opacity: 0.8, dashArray: '1,6' }).addTo(edgeLayer);
     }
+  });
+
+  // Add repeaters.
+  const repeatersToAdd = showAll ? nodes.repeaters : usedRepeaters;
+  repeatersToAdd.forEach(r => {
+    repeaterLayer.addLayer(repeaterMarker(r));
   });
 }
 
@@ -94,6 +164,6 @@ export async function refreshCoverage() {
   if (!resp.ok)
     throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
 
-  const nodes = await resp.json();
+  nodes = await resp.json();
   renderNodes(nodes);
 }
