@@ -198,7 +198,7 @@ function loadPingHistory() {
   try {
     state.pings = [];
     const data = localStorage.getItem(PING_HISTORY_ID_KEY);
-    state.pings = JSON.parse(data);
+    state.pings = JSON.parse(data) ?? [];
   } catch (e) {
     console.warn("Failed to load ping history", e);
   }
