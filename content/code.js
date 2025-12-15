@@ -186,7 +186,8 @@ function getCoverageStyle(coverage) {
     color: coverage.rcv > 0 ?  rcvColor : missColor,
     fillOpacity: 0.6,
     opacity: 0.8,
-    weight: 1
+    weight: 1,
+    pane: "overlayPane"
   };
 
   switch (coloringMode) {
@@ -259,11 +260,11 @@ function coverageMarker(coverage) {
 
   rect.coverage = coverage;
   rect.bindPopup(details, { maxWidth: 320 });
-  rect.on('popupopen', e => updateAllEdgeVisibility(e.target.coverage));
+  rect.on('popupopen', e => updateAllEdgeVisibility(e.target.coverage, false));
   rect.on('popupclose', () => updateAllEdgeVisibility());
 
   if (window.matchMedia("(hover: hover)").matches) {
-    rect.on('mouseover', e => updateAllEdgeVisibility(e.target.coverage));
+    rect.on('mouseover', e => updateAllEdgeVisibility(e.target.coverage, false));
     rect.on('mouseout', () => updateAllEdgeVisibility());
   }
 
@@ -275,7 +276,16 @@ function sampleMarker(s) {
   const [lat, lon] = posFromHash(s.id);
   const path = s.path ?? [];
   const color = path.length > 0 ? '#07ac07' : '#e96767';
-  const style = { radius: 5, weight: 1, color: color, fillOpacity: .8 };
+  const style = {
+    radius: 4,
+    weight: 1,
+    opacity: .9,
+    color: "white",
+    fillColor: color,
+    fillOpacity: .75,
+    pane: "markerPane",
+    className: "marker-shadow"
+  };
   const marker = L.circleMarker([lat, lon], style);
   const date = new Date(fromTruncatedTime(s.time));
   const details = `
@@ -308,11 +318,11 @@ function repeaterMarker(r) {
   marker.repeater = r;
   marker.bindPopup(details, { maxWidth: 320 });
   marker.on('add', () => updateRepeaterMarkerVisibility(marker));
-  marker.on('popupopen', e => updateAllEdgeVisibility(e.target.repeater));
+  marker.on('popupopen', e => updateAllEdgeVisibility(e.target.repeater, true));
   marker.on('popupclose', () => updateAllEdgeVisibility());
 
   if (window.matchMedia("(hover: hover)").matches) {
-    marker.on('mouseover', e => updateAllEdgeVisibility(e.target.repeater));
+    marker.on('mouseover', e => updateAllEdgeVisibility(e.target.repeater, true));
     marker.on('mouseout', () => updateAllEdgeVisibility());
   }
 
@@ -385,33 +395,36 @@ function updateAllRepeaterMarkers() {
   repeaterLayer.eachLayer(m => updateRepeaterMarkerVisibility(m));
 }
 
-function updateCoverageMarkerHighlight(m, highlight = false) {
+function updateCoverageMarkerHighlight(m, { highlight = false, dim = false } = {}) {
   const el = m.getElement();
+  el.classList.remove("highlighted-path");
+  el.classList.remove("dimmed-path");
+
   if (highlight) {
     el.classList.add("highlighted-path");
-  } else {
-    el.classList.remove("highlighted-path");
+  } else if (dim) {
+    el.classList.add("dimmed-path");
   }
 }
 
-function updateAllCoverageMarkers() {
-  coverageLayer.eachLayer(m => updateCoverageMarkerHighlight(m));
+function updateAllCoverageMarkers(dim = false) {
+  coverageLayer.eachLayer(m => updateCoverageMarkerHighlight(m, { dim: dim }));
 }
 
-function updateAllEdgeVisibility(end) {
+function updateAllEdgeVisibility(end, dimTiles = false ) {
   const markersToOverride = [];
   const coverageToHighlight = [];
 
   // Reset markers to default.
   updateAllRepeaterMarkers();
-  updateAllCoverageMarkers();
+  updateAllCoverageMarkers(dimTiles && end !== undefined);
 
   edgeLayer.eachLayer(e => {
     if (end !== undefined && e.ends.includes(end)) {
       // e.ends is [repeater, coverage]
       markersToOverride.push(e.ends[0].marker);
       coverageToHighlight.push(e.ends[1].marker);
-      e.setStyle({ opacity: 0.6 });
+      e.setStyle({ opacity: 0.5 });
     } else {
       e.setStyle({ opacity: 0 });
     }
@@ -421,7 +434,7 @@ function updateAllEdgeVisibility(end) {
   markersToOverride.forEach(m => updateRepeaterMarkerVisibility(m, true, true));
 
   // Highlight connected coverage markers.
-  coverageToHighlight.forEach(m => updateCoverageMarkerHighlight(m, true));
+  coverageToHighlight.forEach(m => updateCoverageMarkerHighlight(m, { highlight: true }));
 }
 
 function renderNodes(nodes) {

@@ -53,7 +53,7 @@ const currentLocMarker = L.circleMarker([0, 0], {
   color: "white",
   fillColor: "#69DBFE",
   fillOpacity: .9,
-  className: "shadow-sm",
+  className: "marker-shadow",
   pane: "tooltipPane"
 }).addTo(map);
 
@@ -178,6 +178,7 @@ function getCoverageBoxMarker(tileId, info) {
     weight: 1,
     fillColor: fillColor,
     fillOpacity: 0.6,
+    pane: "overlayPane"
   };
   return L.rectangle([[minLat, minLon], [maxLat, maxLon]], style);
 }
@@ -253,12 +254,13 @@ function addPingMarker(ping) {
 
   const pos = posFromHash(ping.hash);
   const pingMarker = L.circleMarker(pos, {
-    radius: 3,
+    radius: 4,
     weight: 1,
     color: "white",
     fillColor: color,
     fillOpacity: .75,
-    pane: "markerPane"
+    pane: "markerPane",
+    className: "marker-shadow"
   });
   pingLayer.addLayer(pingMarker);
 }
@@ -539,7 +541,7 @@ async function sendPing({ auto = false } = {}) {
 
     addCoverageBox(tileId);
     addPingHistory(ping);
-  }, 3000);
+  }, 3500);
 }
 
 // --- UI ---
