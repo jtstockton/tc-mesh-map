@@ -356,7 +356,7 @@ function haversineMiles(a, b) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 var centerPos = [46.23642498634349, -119.1949224098118];
-var maxDistanceMiles = 60;
+var maxDistanceMiles = 40;
 function isValidLocation(p) {
   const [lat, lon] = p;
   if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
