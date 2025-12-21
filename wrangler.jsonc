@@ -9,19 +9,19 @@
     "kv_namespaces": [
         {
             "binding": "SAMPLES",
-            "id": "8c31c923de0f4fe284345168cd05aa3b"
+            "id": "0bc6b459a7e7416fb6e2cdf53921a98f"
         },
         {
             "binding": "REPEATERS",
-            "id": "73f95adffd5345848cbe49837df0778e"
+            "id": "5a12e4a8cbbb48a18f33878f1117d2c3"
         },
         {
             "binding": "COVERAGE",
-            "id": "f32b3f5712764d079a30818524d0d2d6"
+            "id": "84d4d61b33484859ba6c198dd7ee3fe4"
         },
         {
             "binding": "ARCHIVE",
-            "id": "ac2c0e4ad8dc421ca3413e5304fe0f9a"
+            "id": "0bc6b459a7e7416fb6e2cdf53921a98f"
         }
     ]
 }
