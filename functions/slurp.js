@@ -1,6 +1,6 @@
 import * as util from '../content/shared.js';
 
-// Pull all the live KV data into the local emulator.
+// Pull all the live data into the local emulator.
 export async function onRequest(context) {
   const url = new URL(context.request.url);
   const result = {
@@ -14,28 +14,39 @@ export async function onRequest(context) {
   const resp = await fetch("https://tc-mesh-map.n7afk.net/get-nodes");
   const data = await resp.json();
 
-  const sampleStore = context.env.SAMPLES;
-  const repeaterStore = context.env.REPEATERS;
-
-  let work = data.samples.map(async s => {
-    const key = s.id;
-    const metadata = { time: util.fromTruncatedTime(s.time), path: s.path ?? [] };
-    await sampleStore.put(key, "", {
-      metadata: metadata
-    });
-    result.imported_samples++;
+  const sampleInsertStmts = data.samples.map(s => {
+    return context.env.DB
+      .prepare(`
+        INSERT OR IGNORE INTO samples
+          (hash, time, rssi, snr, observed, repeaters)
+        VALUES (?, ?, ?, ?, ?, ?)`)
+      .bind(
+        s.id,
+        util.fromTruncatedTime(s.time),
+        s.rssi ?? null,
+        s.snr ?? null,
+        s.obs ? 1 : 0,
+        JSON.stringify(s.path ?? [])
+      );
   });
-  await Promise.all(work);
+  await context.env.DB.batch(sampleInsertStmts);
+  result.imported_samples = sampleInsertStmts.length;
 
-  work = data.repeaters.map(async r => {
+  const repeaterStore = context.env.REPEATERS;
+  let work = data.repeaters.map(async r => {
     const key = `${r.id}|${r.lat.toFixed(4)}|${r.lon.toFixed(4)}`;
-    const metadata = { time: util.fromTruncatedTime(r.time), id: r.id, name: r.name, lat: r.lat, lon: r.lon, elev: r.elev };
-    await repeaterStore.put(key, "", {
-      metadata: metadata
-    });
+    const metadata = {
+      time: util.fromTruncatedTime(r.time),
+      id: r.id,
+      name: r.name,
+      lat: r.lat,
+      lon: r.lon,
+      elev: r.elev
+    };
+    await repeaterStore.put(key, "", { metadata: metadata });
     result.imported_repeaters++;
   });
   await Promise.all(work);
 
-  return new Response(JSON.stringify(result));
+  return Response.json(result);
 }

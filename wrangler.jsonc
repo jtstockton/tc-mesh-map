@@ -6,6 +6,13 @@
     "compatibility_flags": [
         "nodejs_compat"
     ],
+    "d1_databases": [
+        {
+            "binding": "DB",
+            "database_name": "tc-mesh-map",
+            "database_id": "506e7e88-58f2-459d-98e5-3170da2d9910"
+        }
+    ],
     "kv_namespaces": [
         {
             "binding": "SAMPLES",

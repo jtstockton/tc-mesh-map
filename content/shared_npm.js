@@ -1,6 +1,8 @@
 import geo from 'ngeohash';
+import aes from 'aes-js';
+import { colord } from 'colord';
 
-export { geo };  // export the ngeohash API.
+export { aes, geo };  // export APIs.
 
 // Generates the key for a sample given lat/lon.
 export function sampleKey(lat, lon) {
@@ -72,8 +74,9 @@ export function parseLocation(latStr, lonStr) {
   return [lat, lon];
 }
 
+export const dayInMillis = 24 * 60 * 60 * 1000; 
+
 export function ageInDays(time) {
-  const dayInMillis = 24 * 60 * 60 * 1000;
   return (Date.now() - new Date(time)) / dayInMillis;
 }
 
@@ -128,4 +131,32 @@ export async function retry(func, maxRetries = 5, retryDelayMs = 500) {
         await sleep(retryDelayMs * attempt);
     }
   }
+}
+
+export function definedOr(fn, a, b) {
+  if (a != null && b != null)
+    return fn(a, b);
+
+  if (a == null && b == null)
+    return null;
+
+  return a != null ? a : b;
+}
+
+export function or(a, b) { return a || b; }
+export function and(a, b) {return  a && b; }
+
+export function fadeColor(color, amount) {
+  const c = colord(color);
+  const v = c.toHsv().v;
+  return c.desaturate(amount).lighten(amount * (1 - (v / 255))).toHex();
+}
+
+export function toHex(num) {
+  if (num == null) return num; // Nullish
+
+  let numStr = num.toString(16);
+  if (numStr.length % 2)
+    numStr = numStr.padStart(numStr.length + 1, "0");
+  return numStr;
 }
