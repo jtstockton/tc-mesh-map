@@ -44,6 +44,8 @@ async function migrateSamples(context, result) {
     }
 
     const metadata = k.metadata;
+    const path = metadata.path ?? [];
+    const wasHeard = path.length > 0;
     insertStmts.push(context.env.DB
       .prepare(`
         INSERT OR IGNORE INTO samples
@@ -54,8 +56,8 @@ async function migrateSamples(context, result) {
         metadata.time,
         metadata.rssi ?? null,
         metadata.snr ?? null,
-        metadata.observed ?? 0,
-        JSON.stringify(metadata.path ?? [])
+        metadata.observed ?? (wasHeard ? 1 : 0),
+        JSON.stringify(path)
       ));
     keysToDelete.push(k.name);
   }
