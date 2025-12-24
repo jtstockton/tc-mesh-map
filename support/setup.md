@@ -89,10 +89,11 @@ It will return a JSON blob like this:
 ```
 If it says `has_more: true`, then you will need to wait around 10 seconds and run it again. Repeat this (YOU MUST WAIT BETWEEN CALLS) until `has_more` is false.
 
+2) Migrate repeaters - browse to /db-migrate?op=repeaters
 1) Migrate samples - browse to /db-migrate?op=samples
 2) Migrate archive - browse to /db-migrate?op=archive
 
-Once you have migrated, you can remove the SAMPLES and ARCHIVE bindings from wrangler.jsonc and commit.
+Once you have migrated, you can remove the REPEATERS, SAMPLES, and ARCHIVE bindings from wrangler.jsonc and commit.
 
 ## MQTT Client
 Under the support/mqtt folder are the scripts that you need to run somewhere. Get a Linux

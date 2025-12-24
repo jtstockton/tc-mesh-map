@@ -495,6 +495,7 @@ function updateAllEdgeVisibility(end, dimTiles = false) {
 }
 
 function renderNodes(nodes) {
+  map.closePopup(); // Ensure pop-up handlers don't fire while updating.
   coverageLayer.clearLayers();
   edgeLayer.clearLayers();
   sampleLayer.clearLayers();
