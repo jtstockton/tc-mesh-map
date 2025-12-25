@@ -11,10 +11,10 @@ import {
   centerPos,
   fadeColor,
   geo,
+  geohash8,
   isValidLocation,
   maxDistanceMiles,
   posFromHash,
-  sampleKey,
   toHex
 } from "/content/shared.js";
 
@@ -248,7 +248,7 @@ function loadPingHistory() {
 
     // Upgrade ping data if needed.
     if (state.pings.length > 0 && !state.pings[0].hasOwnProperty("hash")) {
-      state.pings = state.pings.map(x => ({ hash: sampleKey(x[0], x[1]) }));
+      state.pings = state.pings.map(x => ({ hash: geohash8(x[0], x[1]) }));
       savePingHistory();
     }
   } catch (e) {
@@ -482,7 +482,7 @@ async function ensureWardriveChannel() {
 }
 
 // --- Ping logic ---
-async function listenForRepeat(message, timeoutMs = 1000) {
+async function listenForRepeat(message, timeoutMs) {
   return new Promise((resolve, reject) => {
     const on = e => {
       const detail = e.detail;
@@ -541,7 +541,7 @@ async function sendPing({ auto = false } = {}) {
   // Until everything is migrated to use has everywhere,
   // make sure the lat/lon in the ping is derived from the hash.
   const [rawLat, rawLon] = pos;
-  const sampleId = sampleKey(rawLat, rawLon);
+  const sampleId = geohash8(rawLat, rawLon);
   const tileId = sampleId.substring(0, 6);
   const [lat, lon] = posFromHash(sampleId);
 
@@ -571,7 +571,8 @@ async function sendPing({ auto = false } = {}) {
 
   let repeat = null;
   try {
-    repeat = await listenForRepeat(text);
+    // Wait at most 2 seconds for a repeat.
+    repeat = await listenForRepeat(text, 2000);
     log(`Heard repeat from ${repeat.repeater}`);
   } catch {
     log("Didn't hear a repeat in time, assuming lost.");

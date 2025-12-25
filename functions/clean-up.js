@@ -35,18 +35,17 @@ function overlaps(a, b) {
   return dist <= 0.25;  // Consider anything under 1/4 mile overlapped.
 }
 
-function groupByOverlap(items) {
+function groupByOverlap(repeaters) {
   const groups = [];
 
-  for (const i of items) {
+  for (const r of repeaters) {
     let found = false;
-    const loc = [i.metadata.lat, i.metadata.lon];
 
     // Look for an existing overlap group.
     // TODO: Technically should compute a group center for comparison.
     for (const g of groups) {
-      if (overlaps(g.loc, loc)) {
-        g.items.push(i);
+      if (overlaps(g.pos, r.pos)) {
+        g.items.push(r);
         found = true;
         break;
       }
@@ -54,76 +53,60 @@ function groupByOverlap(items) {
 
     if (!found) {
       // Add a new group.
-      groups.push({ id: i.metadata.id, loc: loc, items: [i] });
+      groups.push({ id: r.id, pos: r.pos, items: [r] });
     }
   }
 
   return groups;
 }
 
-async function deduplicateGroup(group, store) {
-  let deletedRepeaters = 0;
-
-  if (group.items.length === 1) {
-    //console.log(`Group ${group.id} ${group.loc} only has 1 item.`);
-    return deletedRepeaters;
-  }
-
-  // In groups with duplicates, keep the newest.
-  const itemsToDelete = [];
-  group.items.reduce((max, current) => {
-    if (max === null) {
-      return current;
-    }
-    itemsToDelete.push(max.metadata.time > current.metadata.time ? current : max);
-    return max.metadata.time > current.metadata.time ? max : current;
-  }, null);
-
-  // Delete all the older items.
-  await Promise.all(itemsToDelete.map(async i => {
-    console.log(`Deleting duplicate of [${group.id} ${group.loc}] ${i.name}`);
-    await store.delete(i.name);
-    deletedRepeaters++;
-  }));
-
-  return deletedRepeaters;
-}
-
 async function cleanRepeaters(context, result) {
-  const store = context.env.REPEATERS;
-  const repeatersList = await store.list();
-  const indexed = new Map();
-
   result.deleted_stale_repeaters = 0;
   result.deleted_dupe_repeaters = 0;
 
-  // Delete stale entries.
-  await Promise.all(repeatersList.keys.map(async r => {
-    const time = r.metadata.time ?? 0;
-    if (util.ageInDays(time) > 10) {
-      console.log(`Deleting stale ${r.name}`);
-      await store.delete(r.name);
-      result.deleted_stale_repeaters++;
-    }
-  }));
+  // Delete entries that haven't been updated in N days.
+  let dbResult = await context.env.DB
+    .prepare("DELETE FROM repeaters WHERE time < ?")
+    .bind(Date.now() - (10 * util.dayInMillis))
+    .run();
+
+  console.log("Delete stale:", dbResult);
+  result.deleted_stale_repeaters = dbResult?.meta?.rows_written ?? 0;
 
   // Index repeaters by Id.
-  repeatersList.keys.forEach(r => {
-    const metadata = r.metadata;
-    const items = indexed.get(metadata.id) ?? [];
-    items.push(r);
-    indexed.set(metadata.id, items);
+  const indexed = new Map();
+  const { results: repeaters } = await context.env.DB
+    .prepare("SELECT id, hash, time FROM repeaters").all();
+  repeaters.forEach(r => {
+    r.pos = util.posFromHash(r.hash);
+    util.pushMap(indexed, r.id, r);
   });
 
   // Compute overlap groups and deduplicate.
-  await Promise.all(indexed.entries().map(async ([key, val]) => {
-    if (val.length >= 1) {
-      const groups = groupByOverlap(val);
-      await Promise.all(groups.map(async g => {
-        result.deleted_dupe_repeaters += await deduplicateGroup(g, store);
-      }));
-    }
-  }));
+  const deleteStmts = [];
+  indexed.entries().forEach(([id, rptrs]) => {
+    const groups = groupByOverlap(rptrs);
+    groups.forEach(g => {
+      if (g.items.length > 1) {
+        // Sort newest first.
+        const sorted = g.items.toSorted((a, b) => b.time - a.time);
+        for (const i of sorted.slice(1)) {
+          deleteStmts.push(context.env.DB
+            .prepare("DELETE FROM repeaters WHERE id = ? AND hash = ?")
+            .bind(i.id, i.hash));
+        }
+      }
+    });
+  });
+
+  if (deleteStmts.length > 0) {
+    // Batch returns an array of results.
+    dbResult = await context.env.DB.batch(deleteStmts)
+    console.log("Delete dupes:", dbResult);
+    dbResult.forEach(r => {
+      result.deleted_dupe_repeaters += r?.meta?.rows_written ?? 0
+    });
+  }
 }
 
 export async function onRequest(context) {

@@ -17,7 +17,7 @@ already have this infrastructure set up for you mesh, you have to start there.
     1) It _is_ possible to run this using your own radio as a makeshift observer, but
     only if that radio is in a location that would be considered "central" to your mesh.
     2) For the PNW mesh, this uses the MQTT feed hosted [here](https://analyzer.letsme.sh/about).
-2) The backend service. This is a Cloudflare Pages app that uses KV for storage. This
+2) The backend service. This is a Cloudflare Pages app that uses D1 and KV for storage. This
 is reasonably easy to set up and you can get started for free to test things out. You
 will absolutely need a paid subscription if you want others to contribute. It's $5/month.
 3) Batch script. This runs hourly to consolidate Samples into Coverage and perform other
@@ -63,9 +63,8 @@ You also need a GitHub account. The app is automatically deployed from the main 
     3) Update wrangler.jsonc with your database id (and name if you used a different one).
     4) You can use wrangler or the UI to execute queries against your data.
 4) Create the required KV namespaces (use wrangler or the UI). NOTE: the project is migrating away from KV.
-    1) mesh-map-repeaters
-    2) mesh-map-coverage
-    3) `npx wrangler kv namespace list` -- to get your UUIDs.
+    1) mesh-map-coverage
+    2) `npx wrangler kv namespace list` -- to get your UUID.
 5) Each of the KV namespaces will have an id. Update the wrangler.jsonc with the actual id for each namespace.
 Leave the binding names alone. Those are the names used in the code.
 6) Create the tables in the DB.
@@ -90,10 +89,11 @@ It will return a JSON blob like this:
 ```
 If it says `has_more: true`, then you will need to wait around 10 seconds and run it again. Repeat this (YOU MUST WAIT BETWEEN CALLS) until `has_more` is false.
 
+2) Migrate repeaters - browse to /db-migrate?op=repeaters
 1) Migrate samples - browse to /db-migrate?op=samples
 2) Migrate archive - browse to /db-migrate?op=archive
 
-Once you have migrated, you can remove the SAMPLES and ARCHIVE bindings from wrangler.jsonc and commit.
+Once you have migrated, you can remove the REPEATERS, SAMPLES, and ARCHIVE bindings from wrangler.jsonc and commit.
 
 ## MQTT Client
 Under the support/mqtt folder are the scripts that you need to run somewhere. Get a Linux

@@ -4,7 +4,6 @@ import * as util from '../content/shared.js';
 
 export async function onRequest(context) {
   const coverageStore = context.env.COVERAGE;
-  const repeaterStore = context.env.REPEATERS;
   const responseData = {
     coverage: [],
     samples: [],
@@ -66,19 +65,19 @@ export async function onRequest(context) {
   });
 
   // Repeaters
-  do {
-    const repeatersList = await repeaterStore.list({ cursor: cursor });
-    repeatersList.keys.forEach(r => {
-      responseData.repeaters.push({
-        time: util.truncateTime(r.metadata.time ?? 0),
-        id: r.metadata.id,
-        name: r.metadata.name,
-        lat: r.metadata.lat,
-        lon: r.metadata.lon,
-        elev: Math.round(r.metadata.elev ?? 0),
-      });
-    });
-  } while (cursor !== null)
+  const { results: repeaters } = await context.env.DB
+    .prepare("SELECT * FROM repeaters").all();
+  repeaters.forEach(r => {
+    const item = {
+      id: r.id,
+      hash: r.hash,
+      name: r.name,
+      time: util.truncateTime(r.time ?? 0),
+      elev: Math.round(r.elevation ?? 0)
+    };
+
+    responseData.repeaters.push(item);
+  });
 
   return Response.json(responseData);
 }
