@@ -15,10 +15,6 @@
     ],
     "kv_namespaces": [
         {
-            "binding": "REPEATERS",
-            "id": "5a12e4a8cbbb48a18f33878f1117d2c3"
-        },
-        {
             "binding": "COVERAGE",
             "id": "84d4d61b33484859ba6c198dd7ee3fe4"
         }
