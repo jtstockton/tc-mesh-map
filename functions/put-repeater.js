@@ -1,5 +1,4 @@
-import { parseLocation } from '../content/shared.js'
-// TODO: move to geohash
+import { geohash8, parseLocation } from '../content/shared.js'
 
 async function getElevation(lat, lon) {
   try {
@@ -22,28 +21,33 @@ async function getElevation(lat, lon) {
 export async function onRequest(context) {
   const request = context.request;
   const data = await request.json();
-  const store = context.env.REPEATERS;
   
+  // TODO: Pass in geohash directly.
   const [lat, lon] = parseLocation(data.lat, data.lon);
+  const hash = geohash8(lat, lon);
   const time = Date.now();
   const id = data.id.toLowerCase();
   const name = data.name;
+  let elevation = data.elevation ?? null;
 
-  const key = `${id}|${lat.toFixed(4)}|${lon.toFixed(4)}`;
-  const metadata = { time: time, id: id, name: name, lat: lat, lon: lon, elev: null };
-  const resp = await store.getWithMetadata(key);
+  if (elevation === null) {
+    // Get the existing elevation if any.
+    const row = await context.env.DB
+      .prepare("SELECT elevation FROM repeaters WHERE id = ? AND hash = ?")
+      .bind(id, hash)
+      .first();
 
-  if (resp.value !== null && resp.metadata !== null) {
-    metadata.elev = resp.metadata.elev ?? null;
+    elevation = row?.elevation ?? await getElevation(lat, lon);
   }
 
-  if (metadata.elev === null) {
-    metadata.elev = await getElevation(lat, lon);
-  }
-
-  await store.put(key, "", {
-    metadata: metadata
-  });
+  await context.env.DB
+    .prepare(`
+      INSERT OR REPLACE INTO repeaters
+        (id, hash, time, name, elevation)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+    .bind(id, hash, time, name, elevation)
+    .run();
 
   return new Response('OK');
 }

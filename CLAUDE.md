@@ -117,3 +117,6 @@ The MQTT config (`support/mqtt/config.json`) also requires region settings:
 - KV writes to the same key are limited to one per second (handled with retry logic)
 - the upsteam repo is https://github.com/kallanreed/mesh-map
 - the public URL is tc-mesh-map.n7afk.net, also available at tc-mesh-map.pages.dev
+- "main" branch for general code
+"production" branch for the public tc-mesh-map.n7afk.net site
+use 'testing' branch for pre-prod testing.
