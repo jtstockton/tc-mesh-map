@@ -1053,14 +1053,14 @@ var w = function(r2) {
 };
 
 // content/shared_npm.js
-function sampleKey(lat, lon) {
+function geohash8(lat, lon) {
   return import_ngeohash.default.encode(lat, lon, 8);
 }
-function coverageKey(lat, lon) {
+function geohash6(lat, lon) {
   return import_ngeohash.default.encode(lat, lon, 6);
 }
-function posFromHash(hash) {
-  const { latitude: lat, longitude: lon } = import_ngeohash.default.decode(hash);
+function posFromHash(geohash) {
+  const { latitude: lat, longitude: lon } = import_ngeohash.default.decode(geohash);
   return [lat, lon];
 }
 function haversineMiles(a2, b2) {
@@ -1175,12 +1175,13 @@ export {
   ageInDays,
   and,
   centerPos,
-  coverageKey,
   dayInMillis,
   definedOr,
   fadeColor,
   fromTruncatedTime,
   export_geo as geo,
+  geohash6,
+  geohash8,
   getOrAdd,
   haversineMiles,
   isValidLocation,
@@ -1190,7 +1191,6 @@ export {
   posFromHash,
   pushMap,
   retry,
-  sampleKey,
   sigmoid,
   toHex,
   truncateTime

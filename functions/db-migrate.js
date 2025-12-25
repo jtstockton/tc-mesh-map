@@ -1,3 +1,8 @@
+// KV to D1 Data Migration
+import {
+  geohash8
+} from '../content/shared.js'
+
 async function migrateArchive(context, result) {
   const now = Date.now();
   const archived = await context.env.ARCHIVE.list();
@@ -73,6 +78,46 @@ async function migrateSamples(context, result) {
   result.samples_migrated = keysToDelete.length;
 }
 
+async function migrateRepeaters(context, result) {
+  const now = Date.now();
+  const repeaters = await context.env.REPEATERS.list();
+  const insertStmts = [];
+  const keysToDelete = [];
+
+  // Limit batch size to stay within request limits.
+  for (const k of repeaters.keys) {
+    if (insertStmts.length >= 500) {
+      result.repeaters_has_more = true;
+      break;
+    }
+
+    const metadata = k.metadata;
+    insertStmts.push(context.env.DB
+      .prepare(`
+        INSERT OR IGNORE INTO repeaters
+          (id, hash, time, name, elevation)
+        VALUES (?, ?, ?, ?, ?)`)
+      .bind(
+        metadata.id,
+        geohash8(metadata.lat, metadata.lon),
+        metadata.time,
+        metadata.name,
+        metadata.elev
+      ));
+    keysToDelete.push(k.name);
+  }
+
+  if (insertStmts.length > 0) {
+    await context.env.DB.batch(insertStmts);
+    for (const k of keysToDelete) {
+      await context.env.REPEATERS.delete(k);
+    }
+  }
+
+  result.repeaters_insert_time = now;
+  result.repeaters_migrated = keysToDelete.length;
+}
+
 export async function onRequest(context) {
   const result = {};
   const url = new URL(context.request.url);
@@ -84,6 +129,9 @@ export async function onRequest(context) {
       break;
     case "samples":
       await migrateSamples(context, result);
+      break;
+    case "repeaters":
+      await migrateRepeaters(context, result);
       break;
   }
 

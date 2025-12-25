@@ -32,21 +32,23 @@ export async function onRequest(context) {
   await context.env.DB.batch(sampleInsertStmts);
   result.imported_samples = sampleInsertStmts.length;
 
-  const repeaterStore = context.env.REPEATERS;
-  let work = data.repeaters.map(async r => {
-    const key = `${r.id}|${r.lat.toFixed(4)}|${r.lon.toFixed(4)}`;
-    const metadata = {
-      time: util.fromTruncatedTime(r.time),
-      id: r.id,
-      name: r.name,
-      lat: r.lat,
-      lon: r.lon,
-      elev: r.elev
-    };
-    await repeaterStore.put(key, "", { metadata: metadata });
-    result.imported_repeaters++;
+  const repeaterInsertStmts = data.repeaters.map(r => {
+    return context.env.DB
+    .prepare(`
+      INSERT OR REPLACE INTO repeaters
+        (id, hash, time, name, elevation)
+      VALUES (?, ?, ?, ?, ?)
+    `)
+    .bind(
+      r.id,
+      r.hash,
+      util.fromTruncatedTime(r.time),
+      r.name,
+      r.elev ?? null
+    );
   });
-  await Promise.all(work);
+  await context.env.DB.batch(repeaterInsertStmts);
+  result.imported_repeaters = repeaterInsertStmts.length;
 
   return Response.json(result);
 }

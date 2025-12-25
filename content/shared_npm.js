@@ -4,19 +4,19 @@ import { colord } from 'colord';
 
 export { aes, geo };  // export APIs.
 
-// Generates the key for a sample given lat/lon.
-export function sampleKey(lat, lon) {
+// Generates 8 char geohash for the given lat/lon.
+export function geohash8(lat, lon) {
   return geo.encode(lat, lon, 8);
 }
 
-// Generates the key for a coverage tile given lat/lon.
-export function coverageKey(lat, lon) {
+// Generates 6 char geohash for the given lat/lon.
+export function geohash6(lat, lon) {
   return geo.encode(lat, lon, 6);
 }
 
-// Gets [lat, lon] for the specified hash.
-export function posFromHash(hash) {
-  const { latitude: lat, longitude: lon } = geo.decode(hash);
+// Gets [lat, lon] for the specified geohash.
+export function posFromHash(geohash) {
+  const { latitude: lat, longitude: lon } = geo.decode(geohash);
   return [lat, lon];
 }
 

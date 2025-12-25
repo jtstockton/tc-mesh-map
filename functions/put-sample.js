@@ -1,16 +1,15 @@
 import {
-  parseLocation,
-  sampleKey
+  geohash8,
+  parseLocation
 } from '../content/shared.js'
 
 export async function onRequest(context) {
   const request = context.request;
   const data = await request.json();
 
-  // TODO: Pass geohash directly.
+  // TODO: Pass in geohash directly.
   const [lat, lon] = parseLocation(data.lat, data.lon);
-  const key = sampleKey(lat, lon);
-
+  const hash = geohash8(lat, lon);
   const time = Date.now();
   const rssi = data.rssi ?? null;
   const snr = data.snr ?? null;
@@ -42,7 +41,7 @@ export async function onRequest(context) {
           )
         )
     `)
-    .bind(key, time, rssi, snr, observed ? 1 : 0, JSON.stringify(path))
+    .bind(hash, time, rssi, snr, observed ? 1 : 0, JSON.stringify(path))
     .run();
 
   return new Response('OK');
