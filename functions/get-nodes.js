@@ -68,10 +68,13 @@ export async function onRequest(context) {
   const { results: repeaters } = await context.env.DB
     .prepare("SELECT * FROM repeaters").all();
   repeaters.forEach(r => {
+    const [lat, lon] = util.posFromHash(r.hash);
     const item = {
       id: r.id,
       hash: r.hash,
       name: r.name,
+      lat: lat,
+      lon: lon,
       time: util.truncateTime(r.time ?? 0),
       elev: Math.round(r.elevation ?? 0)
     };
